@@ -22,7 +22,6 @@ private val entities = listOf(
     "sensor.smart_radiator_thermostat_x_temperatur" to "Wohnzimmer",
     "sensor.smartsensor02_temperatur" to "Bad",
     "sensor.smart_radiator_thermostat_x_temperatur_3" to "Schlafzimmer",
-    "sensor.openweathermap_temperature" to "Außen",
 )
 
 /** Fensterkontakte (binary_sensor: on = offen). */
@@ -30,6 +29,8 @@ private val windows = listOf(
     "binary_sensor.fensterkontakt_wohnzimmer" to "Fenster Wohnzimmer",
     "binary_sensor.fensterkontakt_badezimmer" to "Fenster Bad",
 )
+
+private const val WEATHER_ENTITY = "weather.openweathermap"
 
 private const val REFRESH_MS = 60_000L
 
@@ -100,3 +101,26 @@ fun callService(domain: String, service: String, data: JSONObject): Boolean = ru
         conn.disconnect()
     }
 }.getOrDefault(false)
+
+/** [condition] ist der HA-Wetterzustand (z. B. "rainy"), [temperature] bereits formatiert. */
+data class HaWeather(val condition: String, val temperature: String)
+
+@Composable
+fun rememberHaWeather(): HaWeather? {
+    var weather by remember { mutableStateOf<HaWeather?>(null) }
+    LaunchedEffect(Unit) {
+        if (BuildConfig.HA_URL.isBlank() || BuildConfig.HA_TOKEN.isBlank()) return@LaunchedEffect
+        while (true) {
+            val result = withContext(Dispatchers.IO) {
+                fetchState(WEATHER_ENTITY)?.let { st ->
+                    val temp = st.attrs?.optDouble("temperature")?.takeIf { !it.isNaN() } ?: return@let null
+                    val unit = st.attrs?.optString("temperature_unit")?.takeIf { it.isNotEmpty() } ?: "°C"
+                    HaWeather(st.state, String.format(Locale.getDefault(), "%.1f %s", temp, unit))
+                }
+            }
+            if (result != null) weather = result
+            delay(REFRESH_MS)
+        }
+    }
+    return weather
+}

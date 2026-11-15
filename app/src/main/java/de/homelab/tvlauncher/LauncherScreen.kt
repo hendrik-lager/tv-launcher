@@ -22,6 +22,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.AcUnit
+import androidx.compose.material.icons.rounded.Air
+import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.NightsStay
+import androidx.compose.material.icons.rounded.Thunderstorm
+import androidx.compose.material.icons.rounded.WaterDrop
+import androidx.compose.material.icons.rounded.WbCloudy
+import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SettingsInputHdmi
 import androidx.compose.runtime.Composable
@@ -69,26 +77,30 @@ private val Online = Color(0xFF4ADE80)
 fun LauncherScreen() {
     var page by remember { mutableStateOf(Page.Home) }
     when (page) {
-        Page.Home -> HomePage(onControlsClick = { page = Page.Controls })
+        Page.Home -> HomePage(onControlsClick = { page = Page.Controls }, onSettingsClick = { page = Page.Settings })
         Page.Controls -> ControlScreen(onBack = { page = Page.Home })
+        Page.Settings -> SettingsScreen(onBack = { page = Page.Home })
     }
 }
 
-private enum class Page { Home, Controls }
+private enum class Page { Home, Controls, Settings }
 
 @Composable
-private fun HomePage(onControlsClick: () -> Unit) {
+private fun HomePage(onControlsClick: () -> Unit, onSettingsClick: () -> Unit) {
     val context = LocalContext.current
-    val inputs = rememberHdmiInputs()
+    val settings = remember { InputSettings(context) }
+    val inputs = settings.applyTo(rememberHdmiInputs())
     val status = rememberHaStatus()
+    val weather = rememberHaWeather()
     // Ein Launcher darf per Zurück-Taste nicht beendet werden.
     BackHandler(enabled = true) {}
     LauncherContent(
         onControlsClick = onControlsClick,
         inputs = inputs,
         status = status,
+        weather = weather,
         onInputClick = { launchHdmiInput(context, it) },
-        onSettingsClick = { openSettings(context) },
+        onSettingsClick = onSettingsClick,
     )
 }
 
@@ -99,6 +111,7 @@ fun LauncherContent(
     onSettingsClick: () -> Unit,
     status: List<HaStatus> = emptyList(),
     onControlsClick: () -> Unit = {},
+    weather: HaWeather? = null,
 ) {
     Box(
         Modifier
@@ -107,7 +120,12 @@ fun LauncherContent(
             .padding(horizontal = 64.dp, vertical = 40.dp)
     ) {
         Clock(Modifier.align(Alignment.TopStart))
-        Row(Modifier.align(Alignment.TopEnd), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(
+            Modifier.align(Alignment.TopEnd),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            weather?.let { WeatherBadge(it) }
             if (BuildConfig.HA_URL.isNotBlank() || LocalInspectionMode.current) {
                 RoundIconButton(Icons.Rounded.Dashboard, "Steuerung", onControlsClick)
             }
@@ -118,7 +136,7 @@ fun LauncherContent(
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
         if (inputs.isEmpty()) {
             Text(
-                "Keine HDMI-Eingänge gefunden",
+                "Keine HDMI-Eingänge angezeigt – in den Einstellungen aktivieren",
                 color = TextSecondary,
                 fontSize = 24.sp,
             )
@@ -145,6 +163,40 @@ fun LauncherContent(
 }
 
 @OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WeatherBadge(weather: HaWeather) {
+    val (icon, label) = weatherVisual(weather.condition)
+    Row(
+        Modifier
+            .height(56.dp)
+            .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(28.dp))
+            .padding(horizontal = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(icon, contentDescription = label, tint = Accent, modifier = Modifier.size(30.dp))
+        Column {
+            Text(weather.temperature, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text(label, color = TextSecondary, fontSize = 12.sp, maxLines = 1)
+        }
+    }
+}
+
+private fun weatherVisual(condition: String): Pair<ImageVector, String> = when (condition) {
+    "sunny" -> Icons.Rounded.WbSunny to "Sonnig"
+    "clear-night" -> Icons.Rounded.NightsStay to "Klar"
+    "partlycloudy" -> Icons.Rounded.WbCloudy to "Teils bewölkt"
+    "cloudy" -> Icons.Rounded.Cloud to "Bewölkt"
+    "fog" -> Icons.Rounded.Cloud to "Nebel"
+    "rainy" -> Icons.Rounded.WaterDrop to "Regen"
+    "pouring" -> Icons.Rounded.WaterDrop to "Starkregen"
+    "snowy", "snowy-rainy" -> Icons.Rounded.AcUnit to "Schnee"
+    "hail" -> Icons.Rounded.AcUnit to "Hagel"
+    "lightning", "lightning-rainy" -> Icons.Rounded.Thunderstorm to "Gewitter"
+    "windy", "windy-variant" -> Icons.Rounded.Air to "Windig"
+    else -> Icons.Rounded.Cloud to condition
+}
+
 @Composable
 private fun StatusBar(status: List<HaStatus>, modifier: Modifier = Modifier) {
     FlowRow(
@@ -275,11 +327,11 @@ private fun LauncherPreview() {
         ),
         onInputClick = {},
         onSettingsClick = {},
+        weather = HaWeather("rainy", "8,8 °C"),
         status = listOf(
             HaStatus("Wohnzimmer", "19,4 °C"),
             HaStatus("Bad", "18,9 °C"),
             HaStatus("Schlafzimmer", "18,0 °C"),
-            HaStatus("Außen", "8,8 °C"),
             HaStatus("Fenster Wohnzimmer", "Offen", alert = true),
             HaStatus("Fenster Bad", "Zu"),
         ),

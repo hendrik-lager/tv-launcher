@@ -271,7 +271,7 @@ private fun ItemRow(title: String, subtitle: String, actions: @Composable () -> 
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun PillButton(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun PillButton(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         modifier = modifier,
@@ -290,7 +290,7 @@ private fun PillButton(label: String, modifier: Modifier = Modifier, onClick: ()
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun IconAction(
+fun IconAction(
     icon: ImageVector,
     description: String,
     enabled: Boolean = true,
